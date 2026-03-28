@@ -12,19 +12,19 @@ const PostSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Content is required'],
     },
-    excerpt: {
-      type: String,
-      maxlength: [500, 'Excerpt cannot exceed 500 characters'],
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
     },
     status: {
       type: String,
       enum: ['draft', 'published'],
       default: 'draft',
     },
-    author: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+    tags: {
+      type: [String],
+      default: [],
     },
     slug: {
       type: String,
@@ -34,8 +34,7 @@ const PostSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-generate slug from title before saving
-PostSchema.pre('save', function (next) {
+PostSchema.pre('save', function () {
   if (this.isModified('title')) {
     this.slug = this.title
       .toLowerCase()

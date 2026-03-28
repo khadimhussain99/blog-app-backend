@@ -2,21 +2,31 @@ const express = require('express');
 const router = express.Router();
 const {
   getPublicPosts,
-  getPosts,
+  getMyPosts,
   getPost,
   createPost,
   updatePost,
   deletePost,
+  updatePostStatus,
+  getComments,
+  addComment,
 } = require('../controllers/postController');
 const { protect } = require('../middleware/auth');
 
-// Public route — no auth needed
-router.get('/public', getPublicPosts);
 
-// Private routes — all require auth
+
+// Private routes
 router.use(protect);
+router.get('/my', getMyPosts);
+router.post('/', createPost);
+router.put('/:id', updatePost);
+router.delete('/:id', deletePost);
+router.patch('/:id/status', updatePostStatus);
+router.post('/:id/comments', addComment);
 
-router.route('/').get(getPosts).post(createPost);
-router.route('/:id').get(getPost).put(updatePost).delete(deletePost);
+// Public routes
+router.get('/', getPublicPosts);
+router.get('/:id/comments', getComments);
+router.get('/:id', getPost);
 
 module.exports = router;

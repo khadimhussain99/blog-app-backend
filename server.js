@@ -9,8 +9,11 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors({ origin: '*', credentials: true })); 
-app.use(express.json({limit: '16kb'}));
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true,
+}));
+app.use(express.json());
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -19,7 +22,6 @@ app.use('/api/posts', require('./routes/posts'));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 
-// Error handler (must be last)
 app.use(errorHandler);
 
 // Connect to MongoDB and start server

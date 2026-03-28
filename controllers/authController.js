@@ -1,10 +1,15 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Helper: generate JWT
-const generateToken = (id) => {
+const generateAccessToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
+    expiresIn: process.env.JWT_EXPIRE || '15m',
+  });
+};
+
+const generateRefreshToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d',
   });
 };
 
@@ -20,34 +25,25 @@ exports.register = async (req, res, next) => {
         message: 'Please provide name, email and password',
       });
     }
+
     const user = await User.create({ name, email, password, role });
-    const token = generateToken(user._id);
+
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
 
     res.status(201).json({
       success: true,
-      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
       },
+      accessToken,
+      refreshToken,
     });
   } catch (err) {
-    // Explicit error response instead of relying on next()
-    if (err.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: `${Object.keys(err.keyValue)[0]} already exists`,
-      });
-    }
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({
-        success: false,
-        message: Object.values(err.errors).map((e) => e.message).join(', '),
-      });
-    }
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 };
 
@@ -57,7 +53,6 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -65,7 +60,6 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check user exists and get password
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
@@ -74,7 +68,6 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check password
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({
@@ -83,19 +76,59 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const token = generateToken(user._id);
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
 
     res.json({
       success: true,
-      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
       },
+      accessToken,
+      refreshToken,
     });
   } catch (err) {
+    next(err);
+  }
+};
+
+// @route  POST /api/auth/refresh
+// @access Public
+exports.refresh = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token required',
+      });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token',
+      });
+    }
+
+    const accessToken = generateAccessToken(user._id);
+
+    res.json({ success: true, accessToken });
+  } catch (err) {
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired refresh token',
+      });
+    }
     next(err);
   }
 };
